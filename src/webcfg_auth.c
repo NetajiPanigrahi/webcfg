@@ -238,6 +238,7 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
         close(pipefd[1]); // Close write end
         ssize_t total = 0;
         memset(token, 0, len);
+	ssize_t nread = 0;
         while ((nread = read(pipefd[0], token + total, len - 1 - total)) > 0)
 	{
             total += nread;
