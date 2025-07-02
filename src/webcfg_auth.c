@@ -150,7 +150,7 @@ void createNewAuthToken(char *newToken, size_t len, char *hw_mac, char* hw_seria
 /*----------------------------------------------------------------------------*/
 /*                             External Functions                             */
 /*----------------------------------------------------------------------------*/
-
+#if 0
 void execute_token_script(char *token, char *name, size_t len, char *mac, char *serNum)
 {
     FILE* out = NULL, *file = NULL;
@@ -175,6 +175,77 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
         else
         {
             WebcfgError ("File %s open error\n", name);
+        }
+    }
+}
+#endif
+void execute_token_script(char *token, char *name, size_t len, char *mac, char *serNum)
+{
+    int pipefd[2];    
+    if (!token || !name || !mac || !serNum || len == 0) {
+        WebcfgError("Invalid arguments to execute_token_script\n");
+        if (token && len) token[0] = '\0';
+        return;
+    }	
+	
+    if (strlen(name) == 0) 
+    {
+        token[0] = '\0';
+	return;
+    }
+
+   if (access(name, X_OK) != 0) {
+        WebcfgError("Script file %s not accessible or not executable: %s\n", name, strerror(errno));
+        token[0] = '\0';
+        return;
+    }
+   
+    if (pipe(pipefd) == -1)
+    {
+        WebcfgError("pipe creation failed: %s\n", strerror(errno));
+        token[0] = '\0';
+        return;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1)
+    {
+        WebcfgError("fork failed: %s\n", strerror(errno));
+	close(pipefd[0]);
+        close(pipefd[1]);
+        return;
+    }
+
+    if (pid == 0)
+    {
+        // Child process
+        close(pipefd[0]); // Close read end
+        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        close(pipefd[1]);
+        execl(name, name, serNum, mac, NULL);
+        perror("exec failed");
+        _exit(1);
+    }
+    else
+    {
+      // Parent process
+        close(pipefd[1]); // Close write end
+        ssize_t total = 0;
+        memset(token, 0, len);
+        while ((nread = read(pipefd[0], token + total, len - 1 - total)) > 0)
+	{
+            total += nread;
+            if ((size_t)total >= len - 1)
+	        break;
+        }
+        token[len-1] = '\0';
+        close(pipefd[0]);
+        int status = 0;
+        waitpid(pid, &status, 0);
+        // Remove trailing newline if present
+        size_t outlen = strlen(token);
+        if (outlen && token[outlen - 1] == '\n') {
+            token[outlen - 1] = '\0';
         }
     }
 }
