@@ -201,7 +201,7 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
     }
 
    if (access(name, X_OK) != 0) {
-        WebcfgError("Script file %s not accessible or not executable: %s\n", name, strerror(errno));
+	WebcfgError ("File %s open error\n", name);       
         token[0] = '\0';
         return;
     }
@@ -224,18 +224,19 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
 
     if (pid == 0)
     {
-        // Child process
-        close(pipefd[0]); // Close read end
-        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
+	WebcfgInfo("%s command is initiated\n", __func__);
         execl(name, name, serNum, mac, NULL);
+	WebcfgInfo("execute_token_script command is failed\n");
         perror("exec failed");
         _exit(1);
     }
     else
     {
-      // Parent process
-        close(pipefd[1]); // Close write end
+	WebcfgInfo("%s command is executed\n", __func__);
+        close(pipefd[1]);
         ssize_t total = 0;
         memset(token, 0, len);
 	ssize_t nread = 0;
@@ -249,10 +250,11 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
         close(pipefd[0]);
         int status = 0;
         waitpid(pid, &status, 0);
-        // Remove trailing newline if present
+        /*Remove trailing newline*/
         size_t outlen = strlen(token);
         if (outlen && token[outlen - 1] == '\n') {
             token[outlen - 1] = '\0';
         }
+	WebcfgInfo("%s line: %d command is success\n",__func__,__LINE__);    
     }
 }
