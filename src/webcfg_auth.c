@@ -212,8 +212,9 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
         token[0] = '\0';
         return;
     }
-
+    WebcfgError("%s %d\n", __func__, __LINE__);
     pid_t pid = fork();
+    WebcfgError("%s %d\n", __func__, __LINE__);
     if (pid == -1)
     {
         WebcfgError("fork failed: %s\n", strerror(errno));
@@ -221,7 +222,7 @@ void execute_token_script(char *token, char *name, size_t len, char *mac, char *
         close(pipefd[1]);
         return;
     }
-
+    WebcfgError("%s %d\n", __func__, __LINE__);
     if (pid == 0)
     {
         close(pipefd[0]);
