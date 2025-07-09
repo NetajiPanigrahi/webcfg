@@ -137,7 +137,7 @@ void* blobEventHandler()
 	char *expired_doc= NULL;
 	uint16_t tx_id = 0;
 	expire_timer_t *expired_node = NULL;
-
+        WebcfgError(" %s %d\n", __func__, __LINE__);
 	ret = registerWebcfgEvent(webcfgCallback);
 	if(ret)
 	{
@@ -147,7 +147,7 @@ void* blobEventHandler()
 	{
 		WebcfgError("registerWebcfgEvent failed\n");
 	}
-
+          WebcfgError(" %s %d\n", __func__, __LINE__);
 	/* Loop to check timer expiry. When timer is not running, loop is active but wont check expiry until next timer starts. */
 	while(FOREVER())
 	{
