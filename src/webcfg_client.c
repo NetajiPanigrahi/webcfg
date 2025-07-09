@@ -215,7 +215,9 @@ void* parodus_receive()
 			}
 		}
 	}
+	WebcfgError (" %s: %d\n", __func__, __LINE__);
 	libparodus_shutdown(&webcfg_instance);
+        WebcfgError (" %s: %d\n", __func__, __LINE__);
 	return 0;
 }
 
