@@ -1423,12 +1423,13 @@ rbusError_t rbusWebcfgEventHandler(rbusHandle_t handle, rbusProperty_t prop, rbu
 rbusError_t registerRBUSEventElement()
 {
 	rbusError_t rc = RBUS_ERROR_BUS_ERROR;
+	WebcfgError("%s %d \n", __func__,__LINE__); 
 	if(!rbus_handle)
 	{
 		WebcfgError("registerRBUSEventElement failed as rbus_handle is not initialized\n");
 		return rc;
 	}
-
+        WebcfgError("%s %d \n", __func__,__LINE__); 
 	rc = rbus_regDataElements(rbus_handle, 1, eventDataElement);
 	if(rc != RBUS_ERROR_SUCCESS)
 	{
@@ -1438,6 +1439,7 @@ rbusError_t registerRBUSEventElement()
 	{
 		WebcfgDebug("registerRBUSEventElement success\n");
 	}
+	WebcfgError("%s %d \n", __func__,__LINE__); 
 	return rc;
 }
 
@@ -1450,7 +1452,7 @@ rbusError_t removeRBUSEventElement()
 		WebcfgError("rbus_unregDataElements failed as rbus_handle is not initialized\n");
 		return rc;
 	}
-
+        WebcfgError("%s %d \n", __func__,__LINE__); 
 	rc = rbus_unregDataElements(rbus_handle, 1, eventDataElement);
 	if(rc != RBUS_ERROR_SUCCESS)
 	{
