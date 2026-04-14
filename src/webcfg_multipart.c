@@ -95,6 +95,10 @@ static multipartdocs_t *g_mp_head = NULL;
 pthread_mutex_t multipart_t_mut =PTHREAD_MUTEX_INITIALIZER;
 static int eventFlag = 0;
 
+#ifdef _ONESTACK_PRODUCT_REQ_
+static char g_DeviceMode[32]={'\0'};
+#endif
+
 char * get_global_transID(void)
 {
     return g_transID;
@@ -266,6 +270,11 @@ WEBCFG_STATUS webcfg_http_request(char **configData, int r_count, int status, lo
 			//Replace {mac} string from default init url with actual deviceMAC
 			WebcfgDebug("replaceMacWord to actual device mac\n");
 			webConfigURL = replaceMacWord(configURL, c, get_deviceMAC());
+			if(webConfigURL == NULL)
+			{
+				WebcfgError("replaceMacWord failed. Failed to set webConfigURL\n");
+                return WEBCFG_FAILURE;
+			}
 			//Check the url is having empty mac or actual devicemac
 			checkValidURL(&webConfigURL);
 			if(get_global_supplementarySync() == 0)
@@ -1549,6 +1558,9 @@ void createCurlHeader( struct curl_slist *list, struct curl_slist **header_list,
 	size_t supported_doc_size = 0;
 	size_t supported_version_size = 0;
 	size_t supplementary_docs_size = 0;
+#ifdef _ONESTACK_PRODUCT_REQ_
+	char *DeviceMode_header = NULL;
+#endif	
 
 	WebcfgDebug("Start of createCurlheader\n");
 	//Fetch auth JWT token from cloud.
@@ -1872,6 +1884,23 @@ void createCurlHeader( struct curl_slist *list, struct curl_slist **header_list,
 	{
 		WebcfgError("Failed to get ModelName\n");
 	}
+#ifdef _ONESTACK_PRODUCT_REQ_
+	if(strlen(g_DeviceMode))
+	{
+		DeviceMode_header = (char *) malloc(sizeof(char)*MAX_BUF_SIZE);
+		if(DeviceMode_header !=NULL)
+		{
+			snprintf(DeviceMode_header, MAX_BUF_SIZE, "X-System-Type: %s", g_DeviceMode);
+			WebcfgInfo("DeviceMode_header formed %s\n", DeviceMode_header);
+			list = curl_slist_append(list, DeviceMode_header);
+			WEBCFG_FREE(DeviceMode_header);
+		}
+	}
+	else
+	{
+		WebcfgError("Failed to get DeviceMode\n");
+	}
+#endif
 
 	//Addtional headers for telemetry sync
 	if(get_global_supplementarySync())
@@ -2252,6 +2281,11 @@ WEBCFG_STATUS print_tmp_doc_list(size_t mp_count)
 
 void checkValidURL(char **s) {
 
+    if (!s || *s == NULL)
+    {
+        WebcfgError("webConfigURL is Empty or NULL\n");
+        return;
+    }
     char modified_url[256] = {0};
     int maxRetryTime = 31;
     int backoffRetryTime = 0;
@@ -2271,10 +2305,10 @@ void checkValidURL(char **s) {
             while (1) {
                 if (backoffRetryTime <= maxRetryTime) 
                 {
-                    backoffRetryTime = (int)pow(2, c) - 1;
+                    backoffRetryTime = (1 << c) - 1;
                 }        
                 const char *mac = get_deviceMAC();
-                if (mac != NULL && strncmp(mac, "000000000000", 12) != 0)
+                if (mac != NULL && mac[0] != '\0' && strncmp(mac, "000000000000", 12) != 0)
                 {
                     WebcfgDebug("Mac fetched is %s\n", mac);
                     strncat(modified_url, mac, sizeof(modified_url) - strlen(modified_url) - 1);
@@ -2305,7 +2339,7 @@ void checkValidURL(char **s) {
 
 			// Validate if the MAC is correct for the box
             const char *mac = get_deviceMAC();
-            if (mac != NULL && strncmp(mac, start, 12) != 0)
+            if (mac != NULL && mac[0] != '\0' && strncmp(mac, start, 12) != 0)
 			{
                 WebcfgError("MAC Address in URL does not match actual device MAC. Updating...\n");
                 strncpy(modified_url, *s, start - *s);
@@ -2323,39 +2357,57 @@ void checkValidURL(char **s) {
 
 char *replaceMacWord(const char *s, const char *macW, const char *deviceMACW)
 {
+    if (!s || !macW)
+    {
+        WebcfgInfo("macW or configURL is NULL\n");
+        return NULL;
+    }
 	char *result = NULL;
 	int i, cnt = 0;
 
-	if(deviceMACW != NULL)
-	{
-		int deviceMACWlen = strlen(deviceMACW);
-		int macWlen = strlen(macW);
-		// Counting the number of times mac word occur in the string
-		for (i = 0; s[i] != '\0'; i++)
-		{
-			if (strstr(&s[i], macW) == &s[i])
-			{
-			    cnt++;
-			    // Jumping to index after the mac word.
-			    i += macWlen - 1;
-			}
-		}
+    // When device mac is NULL replace with a fallback mac
+    if (deviceMACW == NULL || deviceMACW[0] == '\0')
+    {
+        WebcfgInfo("Device mac is NULL or Empty. Setting fallback mac\n");
+        deviceMACW = "000000000000";
+    }
 
-		result = (char *)malloc(i + cnt * (deviceMACWlen - macWlen) + 1);
-		i = 0;
-		while (*s)
+	int deviceMACWlen = strlen(deviceMACW);
+	int macWlen = strlen(macW);
+
+	// Counting the number of times mac word occur in the string
+	for (i = 0; s[i] != '\0'; i++)
+	{
+		if (strstr(&s[i], macW) == &s[i])
 		{
-			if (strstr(s, macW) == s)
-			{
-				strcpy(&result[i], deviceMACW);
-				i += deviceMACWlen;
-				s += macWlen;
-			}
-			else
-			    result[i++] = *s++;
+			cnt++;
+			// Jumping to index after the mac word.
+			i += macWlen - 1;
 		}
-		result[i] = '\0';
 	}
+
+	result = (char *)malloc(i + cnt * (deviceMACWlen - macWlen) + 1);
+	if(result == NULL)
+	{
+		WebcfgError("malloc failed for result\n");
+		return NULL;
+	}
+
+	i = 0;
+	while (*s)
+	{
+		if (strstr(s, macW) == s)
+		{
+			strcpy(&result[i], deviceMACW);
+			i += deviceMACWlen;
+			s += macWlen;
+		}
+		else
+		{
+			result[i++] = *s++;
+		}
+	}
+	result[i] = '\0';
 	return result;
 }
 
@@ -2602,3 +2654,16 @@ void setForceSyncTransID(char *ForceSyncTransID)
 const char* getForceSyncTransID() {
     return g_ForceSyncTransID;
 }
+
+#ifdef _ONESTACK_PRODUCT_REQ_
+void setDeviceMode(char *mode)
+{
+    if (mode == NULL)
+    {
+        snprintf(g_DeviceMode, sizeof(g_DeviceMode), "residential");
+        return;
+    }
+
+    snprintf(g_DeviceMode, sizeof(g_DeviceMode), "%s", mode);
+}
+#endif
